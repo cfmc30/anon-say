@@ -7,7 +7,6 @@ use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
 use std::fs;
-use std::path::Path;
 
 #[derive(Parser)]
 #[command(name = "ANON SAY", version, author, about = "A simple meme generator in Rust")]
@@ -110,7 +109,7 @@ fn main() {
     if !args.top_text.is_empty() {
         draw_centered_text_with_outline(
             &mut img,
-            &args.top_text.to_uppercase(),
+            &args.top_text,
             10,
             &font,
             scale,
@@ -125,7 +124,7 @@ fn main() {
         let y = h - (scale.y as i32 + 10);
         draw_centered_text_with_outline(
             &mut img,
-            &args.bottom_text.to_uppercase(),
+            &args.bottom_text,
             y,
             &font,
             scale,
