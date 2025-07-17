@@ -1,15 +1,19 @@
 /// ANON SAY - Meme Generator CLI in Rust
 /// Usage:
 /// anon-say --image path/to/image.jpg --top-text "Top" --bottom-text "Bottom"
-
 use clap::Parser;
-use image::{Rgba, RgbaImage};
+use image::{DynamicImage, ImageBuffer, Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
 use std::fs;
 
 #[derive(Parser)]
-#[command(name = "ANON SAY", version, author, about = "A simple meme generator in Rust")]
+#[command(
+    name = "ANON SAY",
+    version,
+    author,
+    about = "A simple meme generator in Rust"
+)]
 struct Args {
     #[arg(short, long)]
     image: String,
@@ -60,7 +64,9 @@ fn draw_centered_text_with_outline(
     outline_thickness: i32,
 ) {
     let v_metrics = font.v_metrics(scale);
-    let glyphs: Vec<_> = font.layout(text, scale, rusttype::point(0.0, v_metrics.ascent)).collect();
+    let glyphs: Vec<_> = font
+        .layout(text, scale, rusttype::point(0.0, v_metrics.ascent))
+        .collect();
     let text_width = glyphs
         .iter()
         .rev()
@@ -79,19 +85,55 @@ fn draw_centered_text_with_outline(
             }
         }
     }
+
+    let mut mask = ImageBuffer::from_pixel(img.width(), img.height(), Rgba([0, 0, 0, 0]));
+
     for (dx, dy) in &offsets {
-        draw_text_mut(img, outline_color, text_x + dx, text_y + dy, scale, font, text);
+        draw_text_mut(
+            &mut mask,
+            outline_color,
+            text_x + dx,
+            text_y + dy,
+            scale,
+            font,
+            text,
+        );
     }
 
-    draw_text_mut(img, font_color, text_x, text_y, scale, font, text);
+    draw_text_mut(&mut mask, font_color, text_x, text_y, scale, font, text);
+
+    for ps in img.enumerate_pixels_mut().zip(mask.enumerate_pixels()) {
+        let (p1, p2) = ps;
+	let a = p2.2.0[3] as f32 / 255.0;
+
+	for i in 0..3 {
+	    p1.2.0[i] = (p1.2.0[i] as f32 * (1.0 - a) + p2.2.0[i] as f32 * a) as u8;
+	}
+    }
+
+    let conf = viuer::Config {
+        absolute_offset: false,
+        ..Default::default()
+    };
+
+    let mut dimg = DynamicImage::ImageRgba8(img.clone());
+    viuer::print(&dimg, &conf).unwrap();
 }
 
 fn main() {
     let args = Args::parse();
 
-    let mut img = image::open(&args.image)
-        .expect("Failed to open image")
-        .to_rgba8();
+    // let mut img = image::open(&args.image)
+    //     .expect("")
+    //     .to_rgba8();
+
+    let mut img = match image::open(&args.image) {
+        Ok(i) => i.to_rgba8(),
+        Err(e) => {
+            eprintln!("Error opening image '{}': {}", args.image, e);
+            std::process::exit(-1);
+        }
+    };
 
     let font_data = fs::read(&args.font_path).expect("Font file not found");
     let font = Font::try_from_vec(font_data).expect("Invalid font file");
